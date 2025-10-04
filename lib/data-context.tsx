@@ -11,6 +11,7 @@ interface DataContextType {
   users: User[]
   expenses: Expense[]
   approvalRule: ApprovalRule | null
+  databaseMode: boolean
   login: (email: string, password: string) => Promise<boolean>
   signup: (email: string, password: string, name: string, companyName: string, currency: Currency) => Promise<boolean>
   logout: () => void
@@ -36,6 +37,8 @@ interface DataContextType {
   updateApprovalRule: (isManagerApproverRequired: boolean, sequence: ApprovalRule["sequence"]) => void
   getManagerExpenses: (managerId: string) => Expense[]
   getPendingExpensesForApprover: (approverId: string) => Expense[]
+  toggleDatabaseMode: () => void
+  initializeDatabase: () => Promise<boolean>
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined)
@@ -46,20 +49,32 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [users, setUsers] = useState<User[]>([])
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [approvalRule, setApprovalRule] = useState<ApprovalRule | null>(null)
+  const [databaseMode, setDatabaseMode] = useState<boolean>(false)
+  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
+    setMounted(true)
+    
+    // Only access localStorage after component is mounted
     const storedUser = localStorage.getItem("currentUser")
     const storedCompany = localStorage.getItem("company")
     const storedUsers = localStorage.getItem("users")
     const storedExpenses = localStorage.getItem("expenses")
     const storedApprovalRule = localStorage.getItem("approvalRule")
+    const storedDatabaseMode = localStorage.getItem("databaseMode")
 
     if (storedUser) setCurrentUser(JSON.parse(storedUser))
     if (storedCompany) setCompany(JSON.parse(storedCompany))
     if (storedUsers) setUsers(JSON.parse(storedUsers))
     if (storedExpenses) setExpenses(JSON.parse(storedExpenses))
     if (storedApprovalRule) setApprovalRule(JSON.parse(storedApprovalRule))
+    if (storedDatabaseMode) setDatabaseMode(JSON.parse(storedDatabaseMode))
   }, [])
+
+  // Prevent hydration mismatch by not rendering until mounted
+  if (!mounted) {
+    return null
+  }
 
   const login = async (email: string, password: string): Promise<boolean> => {
     const storedUsers = localStorage.getItem("users")
@@ -431,6 +446,23 @@ export function DataProvider({ children }: { children: ReactNode }) {
     })
   }
 
+  const toggleDatabaseMode = () => {
+    setDatabaseMode(!databaseMode)
+    localStorage.setItem("databaseMode", JSON.stringify(!databaseMode))
+  }
+
+  const initializeDatabase = async (): Promise<boolean> => {
+    try {
+      // This would typically test database connection
+      // For now, just simulate a successful connection
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      return true
+    } catch (error) {
+      console.error("Database initialization failed:", error)
+      return false
+    }
+  }
+
   return (
     <DataContext.Provider
       value={{
@@ -439,6 +471,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         users,
         expenses,
         approvalRule,
+        databaseMode,
         login,
         signup,
         logout,
@@ -451,6 +484,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         updateApprovalRule,
         getManagerExpenses,
         getPendingExpensesForApprover,
+        toggleDatabaseMode,
+        initializeDatabase,
       }}
     >
       {children}

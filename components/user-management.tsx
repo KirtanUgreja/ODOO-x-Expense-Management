@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { UserPlus, Edit, Mail } from "lucide-react"
-import type { UserRole } from "@/types/user" // Declare or import UserRole
+import type { UserRole } from "@/lib/types"
 
 export function UserManagement() {
   const { users, createUser, updateUserRole, updateUserManager } = useData()

@@ -82,6 +82,7 @@ export interface OCRData {
   date?: string
   category?: string
   items?: string[]
+  confidence?: number
 }
 
 export interface EmailNotification {
