@@ -19,7 +19,7 @@ import {
 import { UserManagement } from "@/components/user-management"
 import { ApprovalRuleConfig } from "@/components/approval-rule-config"
 import { EmailNotificationsPanel } from "@/components/email-notifications-panel"
-import { EmailConfigWizard } from "@/components/email-config-wizard"
+
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Users, Receipt, TrendingUp, Settings, LogOut, ShieldAlert, CheckCircle, XCircle, Mail } from "lucide-react"
 import { getEmailNotifications } from "@/lib/email-service"
@@ -89,11 +89,10 @@ export function AdminDashboard() {
 
       <div className="container mx-auto px-6 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full max-w-3xl grid-cols-5">
+          <TabsList className="grid w-full max-w-3xl grid-cols-4">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
-            <TabsTrigger value="email-config">Email Config</TabsTrigger>
             <TabsTrigger value="emails" className="relative">
               <Mail className="w-4 h-4 mr-2" />
               Emails
@@ -301,10 +300,6 @@ export function AdminDashboard() {
 
           <TabsContent value="settings">
             <ApprovalRuleConfig />
-          </TabsContent>
-
-          <TabsContent value="email-config">
-            <EmailConfigWizard />
           </TabsContent>
 
           <TabsContent value="emails">

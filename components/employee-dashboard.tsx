@@ -43,8 +43,8 @@ export function EmployeeDashboard() {
               <ThemeToggle />
               <Dialog open={isSubmitDialogOpen} onOpenChange={setIsSubmitDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button>
-                    <Plus className="w-4 h-4 mr-2" />
+                  <Button className="flex items-center justify-center">
+                    <Plus className="w-4 h-4 mr-1" />
                     Submit Expense
                   </Button>
                 </DialogTrigger>
