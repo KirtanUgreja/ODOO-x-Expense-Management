@@ -12,61 +12,6 @@ ExpenseFlow now includes a comprehensive email system that automatically sends n
 
 ## 🚀 Quick Start
 
-### Method 1: EmailJS (Easy Setup)
-
-EmailJS is perfect for development and small applications:
-
-1. **Create EmailJS Account**
-   - Visit [emailjs.com](https://www.emailjs.com/)
-   - Sign up for a free account
-   - Create a new email service (Gmail, Outlook, etc.)
-
-2. **Set Environment Variables**
-   ```bash
-   # Add to .env.local
-   NEXT_PUBLIC_EMAILJS_SERVICE_ID=your_service_id
-   NEXT_PUBLIC_EMAILJS_PUBLIC_KEY=your_public_key
-   NEXT_PUBLIC_EMAILJS_TEMPLATE_CREDENTIALS=template_id_1
-   NEXT_PUBLIC_EMAILJS_TEMPLATE_EXPENSE=template_id_2
-   ```
-
-3. **Create Email Templates**
-   
-   **Credentials Template:**
-   ```html
-   Hello {{to_name}},
-   
-   Your ExpenseFlow account has been created!
-   
-   Email: {{user_email}}
-   Password: {{user_password}}
-   Role: {{user_role}}
-   
-   Login at: [Your App URL]
-   
-   Best regards,
-   ExpenseFlow Team
-   ```
-   
-   **Expense Template:**
-   ```html
-   Hello {{to_name}},
-   
-   Expense Update: {{status_text}}
-   
-   Employee: {{employee_name}}
-   Amount: {{expense_amount}} {{expense_currency}}
-   Category: {{expense_category}}
-   Description: {{expense_description}}
-   Date: {{expense_date}}
-   
-   Login to review: [Your App URL]
-   
-   Best regards,
-   ExpenseFlow Team
-   ```
-
-### Method 2: SMTP (Production Ready)
 
 SMTP is recommended for production environments:
 

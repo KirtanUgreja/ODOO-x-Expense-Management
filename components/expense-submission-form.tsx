@@ -11,7 +11,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { Currency } from "@/lib/types"
 import { extractReceiptData, createReceiptUrl } from "@/lib/ocr-service"
-import { Loader2, FileText } from "lucide-react"
+import { OCRReceiptUpload } from "@/components/ocr-receipt-upload-enhanced"
+import { Loader2, FileText, Zap, CheckCircle2 } from "lucide-react"
+import type { OCRData } from "@/lib/types"
 
 interface ExpenseSubmissionFormProps {
   onSuccess?: () => void
@@ -27,6 +29,8 @@ export function ExpenseSubmissionForm({ onSuccess }: ExpenseSubmissionFormProps)
   const [isProcessingOCR, setIsProcessingOCR] = useState(false)
   const [receiptFile, setReceiptFile] = useState<File | null>(null)
   const [receiptUrl, setReceiptUrl] = useState<string>("")
+  const [ocrData, setOcrData] = useState<OCRData | null>(null)
+  const [isAutoFilled, setIsAutoFilled] = useState(false)
 
   const categories = [
     "Travel",
@@ -40,6 +44,35 @@ export function ExpenseSubmissionForm({ onSuccess }: ExpenseSubmissionFormProps)
     "Accommodation",
     "Other",
   ]
+
+  const handleOCRDataExtracted = (data: OCRData, url: string) => {
+    console.log('[Expense Form] OCR data received:', data)
+    setOcrData(data)
+    setReceiptUrl(url)
+    
+    // Auto-populate form fields
+    if (data.amount && data.amount > 0) {
+      setAmount(data.amount.toString())
+    }
+    if (data.currency) {
+      setCurrency(data.currency)
+    }
+    if (data.category) {
+      setCategory(data.category)
+    }
+    if (data.date) {
+      setDate(data.date)
+    }
+    if (data.merchantName && data.merchantName !== "OCR Processing Failed") {
+      const descriptionParts = [data.merchantName]
+      if (data.items && data.items.length > 0) {
+        descriptionParts.push(`Items: ${data.items.slice(0, 3).join(', ')}${data.items.length > 3 ? '...' : ''}`)
+      }
+      setDescription(descriptionParts.join(' - '))
+    }
+    
+    setIsAutoFilled(true)
+  }
 
   const handleReceiptUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -90,35 +123,18 @@ export function ExpenseSubmissionForm({ onSuccess }: ExpenseSubmissionFormProps)
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 pt-4">
-      <div className="space-y-2">
-        <Label htmlFor="receipt">Receipt Upload (Optional)</Label>
-        <div className="flex items-center gap-3">
-          <Input
-            id="receipt"
-            type="file"
-            accept="image/*"
-            onChange={handleReceiptUpload}
-            disabled={isProcessingOCR}
-            className="flex-1"
-          />
-          {isProcessingOCR && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Processing...
-            </div>
-          )}
-          {receiptFile && !isProcessingOCR && (
-            <div className="flex items-center gap-2 text-sm text-primary">
-              <FileText className="w-4 h-4" />
-              {receiptFile.name}
-            </div>
-          )}
+    <div className="space-y-6">
+      {/* Enhanced OCR Receipt Upload */}
+      <OCRReceiptUpload onDataExtracted={handleOCRDataExtracted} />
+
+      <form onSubmit={handleSubmit} className="space-y-4">{isAutoFilled && (
+        <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+          <CheckCircle2 className="w-4 h-4 text-green-600" />
+          <span className="text-sm text-green-800 dark:text-green-200">
+            Form auto-filled from receipt! Review the details and submit when ready.
+          </span>
         </div>
-        <p className="text-xs text-muted-foreground">
-          Upload a receipt image and we'll automatically extract the details using OCR
-        </p>
-      </div>
+      )}
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
@@ -201,5 +217,6 @@ export function ExpenseSubmissionForm({ onSuccess }: ExpenseSubmissionFormProps)
         </Button>
       </div>
     </form>
+    </div>
   )
 }

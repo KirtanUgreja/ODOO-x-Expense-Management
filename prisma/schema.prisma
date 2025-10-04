@@ -1,0 +1,138 @@
+// ExpenseFlow Database Schema
+// PostgreSQL database schema for expense management system
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User roles enum
+enum UserRole {
+  ADMIN
+  MANAGER
+  EMPLOYEE
+}
+
+// Expense status enum
+enum ExpenseStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// Company model
+model Company {
+  id        String   @id @default(cuid())
+  name      String
+  currency  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  users    User[]
+  expenses Expense[]
+
+  @@map("companies")
+}
+
+// User model
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  role      UserRole
+  password  String?
+  companyId String
+  managerId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  company           Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  manager           User?             @relation("ManagerEmployee", fields: [managerId], references: [id])
+  directReports     User[]            @relation("ManagerEmployee")
+  expenses          Expense[]
+  approvalRecords   ApprovalRecord[]
+  emailNotifications EmailNotification[]
+
+  @@map("users")
+}
+
+// Expense model
+model Expense {
+  id                  String        @id @default(cuid())
+  employeeId          String
+  employeeName        String
+  amount              Float
+  currency            String
+  convertedAmount     Float?
+  category            String
+  description         String
+  date                String
+  status              ExpenseStatus @default(PENDING)
+  companyId           String
+  currentApprovalStep Int           @default(0)
+  receiptUrl          String?
+  ocrData             Json?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  // Relations
+  employee        User             @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  company         Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  approvalHistory ApprovalRecord[]
+
+  @@map("expenses")
+}
+
+// Approval record model
+model ApprovalRecord {
+  id          String   @id @default(cuid())
+  expenseId   String
+  approverId  String
+  approverName String
+  action      String   // "approved" or "rejected"
+  comment     String?
+  step        Int
+  timestamp   DateTime @default(now())
+
+  // Relations
+  expense  Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  approver User    @relation(fields: [approverId], references: [id], onDelete: Cascade)
+
+  @@map("approval_records")
+}
+
+// Email notification model
+model EmailNotification {
+  id        String   @id @default(cuid())
+  userId    String?
+  to        String
+  subject   String
+  body      String
+  type      String
+  sent      Boolean  @default(false)
+  timestamp DateTime @default(now())
+
+  // Relations
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("email_notifications")
+}
+
+// Approval rule model
+model ApprovalRule {
+  id                         String   @id @default(cuid())
+  companyId                  String?
+  isManagerApproverRequired  Boolean  @default(true)
+  isAdminApprovalRequired    Boolean  @default(false)
+  amountThreshold           Float?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  @@map("approval_rules")
+}

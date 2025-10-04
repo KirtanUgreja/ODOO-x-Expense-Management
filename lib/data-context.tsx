@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import type { User, Company, Expense, ApprovalRule, Currency, UserRole, ApprovalRecord } from "./types"
 import { sendCredentialsEmail, sendExpenseNotification } from "./email-service"
 import { convertCurrency } from "./currency-service"
+import { UserService, CompanyService, ExpenseService } from "./database-services"
 
 interface DataContextType {
   currentUser: User | null
@@ -11,6 +12,7 @@ interface DataContextType {
   users: User[]
   expenses: Expense[]
   approvalRule: ApprovalRule | null
+  databaseMode: boolean
   login: (email: string, password: string) => Promise<boolean>
   signup: (email: string, password: string, name: string, companyName: string, currency: Currency) => Promise<boolean>
   logout: () => void
@@ -36,6 +38,8 @@ interface DataContextType {
   updateApprovalRule: (isManagerApproverRequired: boolean, sequence: ApprovalRule["sequence"]) => void
   getManagerExpenses: (managerId: string) => Expense[]
   getPendingExpensesForApprover: (approverId: string) => Expense[]
+  toggleDatabaseMode: () => void
+  initializeDatabase: () => Promise<boolean>
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined)
@@ -46,6 +50,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [users, setUsers] = useState<User[]>([])
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [approvalRule, setApprovalRule] = useState<ApprovalRule | null>(null)
+  const [databaseMode, setDatabaseMode] = useState<boolean>(false)
 
   useEffect(() => {
     const storedUser = localStorage.getItem("currentUser")
@@ -431,6 +436,62 @@ export function DataProvider({ children }: { children: ReactNode }) {
     })
   }
 
+  const toggleDatabaseMode = () => {
+    const newMode = !databaseMode
+    setDatabaseMode(newMode)
+    localStorage.setItem("databaseMode", JSON.stringify(newMode))
+    
+    if (newMode) {
+      // When switching to database mode, load data from database
+      loadDataFromDatabase()
+    }
+  }
+
+  const initializeDatabase = async (): Promise<boolean> => {
+    try {
+      // Test database connection by trying to create a test query
+      const testResult = await fetch('/api/database/test', { method: 'GET' })
+      return testResult.ok
+    } catch (error) {
+      console.error('Database connection failed:', error)
+      return false
+    }
+  }
+
+  const loadDataFromDatabase = async () => {
+    if (!databaseMode) return
+
+    try {
+      // Load company data
+      if (currentUser?.companyId) {
+        const companyData = await CompanyService.findById(currentUser.companyId)
+        if (companyData) setCompany(companyData)
+      }
+
+      // Load users data
+      if (company?.id) {
+        const usersData = await UserService.getByCompany(company.id)
+        setUsers(usersData)
+      }
+
+      // Load expenses data
+      if (company?.id) {
+        const expensesData = await ExpenseService.getByCompany(company.id)
+        setExpenses(expensesData)
+      }
+    } catch (error) {
+      console.error('Failed to load data from database:', error)
+    }
+  }
+
+  // Initialize database mode from localStorage
+  useEffect(() => {
+    const storedDatabaseMode = localStorage.getItem("databaseMode")
+    if (storedDatabaseMode) {
+      setDatabaseMode(JSON.parse(storedDatabaseMode))
+    }
+  }, [])
+
   return (
     <DataContext.Provider
       value={{
@@ -439,6 +500,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         users,
         expenses,
         approvalRule,
+        databaseMode,
         login,
         signup,
         logout,
@@ -451,6 +513,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         updateApprovalRule,
         getManagerExpenses,
         getPendingExpensesForApprover,
+        toggleDatabaseMode,
+        initializeDatabase,
       }}
     >
       {children}

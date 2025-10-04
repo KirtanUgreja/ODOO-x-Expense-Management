@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Plus, Trash2, ArrowRight } from "lucide-react"
-import type { ApprovalStep, UserRole } from "@/types" // Declare or import the variables here
+import type { ApprovalStep, UserRole } from "@/lib/types"
 
 export function ApprovalRuleConfig() {
   const { approvalRule, updateApprovalRule, users } = useData()
@@ -110,7 +110,7 @@ export function ApprovalRuleConfig() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="any">Any {step.role}</SelectItem>
-                      {getUsersByRole(step.role).map((user) => (
+                      {getUsersByRole(step.role!).map((user) => (
                         <SelectItem key={user.id} value={user.id}>
                           {user.name}
                         </SelectItem>

@@ -4,7 +4,10 @@ import type React from "react"
 
 import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Upload, Loader2, CheckCircle2 } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Progress } from "@/components/ui/progress"
+import { Badge } from "@/components/ui/badge"
+import { Upload, Loader2, CheckCircle2, AlertCircle, FileImage, Brain } from "lucide-react"
 import { extractReceiptData, createReceiptUrl } from "@/lib/ocr-service"
 import type { OCRData } from "@/lib/types"
 
@@ -14,26 +17,57 @@ interface OCRReceiptUploadProps {
 
 export function OCRReceiptUpload({ onDataExtracted }: OCRReceiptUploadProps) {
   const [isProcessing, setIsProcessing] = useState(false)
+  const [progress, setProgress] = useState(0)
   const [extractedData, setExtractedData] = useState<OCRData | null>(null)
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null)
+  const [fileName, setFileName] = useState<string>("")
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
 
     setIsProcessing(true)
+    setProgress(0)
     setExtractedData(null)
+    setFileName(file.name)
 
     try {
-      const [ocrData, receiptUrl] = await Promise.all([extractReceiptData(file), createReceiptUrl(file)])
-
-      setExtractedData(ocrData)
+      console.log('[OCR Upload] Starting processing for:', file.name)
+      
+      // Create receipt URL first for preview
+      const receiptUrl = await createReceiptUrl(file)
       setReceiptPreview(receiptUrl)
+      setProgress(20)
+
+      // Extract OCR data with progress callback
+      const ocrData = await extractReceiptData(file, (progressPercent) => {
+        setProgress(20 + (progressPercent * 0.8)) // 20% to 100%
+      })
+
+      console.log('[OCR Upload] Extraction complete:', ocrData)
+      setExtractedData(ocrData)
       onDataExtracted(ocrData, receiptUrl)
+      
     } catch (error) {
       console.error("OCR processing failed:", error)
+      // Still show the image even if OCR fails
+      const receiptUrl = await createReceiptUrl(file)
+      setReceiptPreview(receiptUrl)
+      
+      const fallbackData: OCRData = {
+        merchantName: "OCR Processing Failed",
+        amount: 0,
+        currency: "USD",
+        date: new Date().toISOString().split('T')[0],
+        category: "Other",
+        items: ["Please enter details manually"],
+        confidence: 0
+      }
+      setExtractedData(fallbackData)
+      onDataExtracted(fallbackData, receiptUrl)
     } finally {
       setIsProcessing(false)
+      setProgress(100)
     }
   }
 
