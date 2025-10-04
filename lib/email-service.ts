@@ -49,11 +49,13 @@ async function sendEmailViaAPI(emailData: any): Promise<boolean> {
       body: JSON.stringify(emailData),
     })
 
-    if (response.ok) {
+    const result = await response.json()
+    
+    if (response.ok && result.success) {
       console.log('[API] Email sent successfully via server')
       return true
     } else {
-      console.error('[API] Failed to send email via server')
+      console.error('[API] Failed to send email via server:', result.message || 'Unknown error')
       return false
     }
   } catch (error) {
@@ -108,7 +110,7 @@ ExpenseFlow Team
   // Method 2: Fallback to API route if EmailJS fails
   if (!emailSent) {
     emailSent = await sendEmailViaAPI({
-      ...emailData,
+      to_email: emailData.to_email,
       subject: email.subject,
       html: email.body.replace(/\n/g, '<br>')
     })
@@ -246,7 +248,8 @@ ExpenseFlow Team
   // Method 2: Fallback to API route if EmailJS fails
   if (!emailSent) {
     emailSent = await sendEmailViaAPI({
-      ...emailData,
+      to_email: emailData.to_email,
+      subject: subject,
       html: body.replace(/\n/g, '<br>')
     })
   }
