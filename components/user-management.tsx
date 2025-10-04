@@ -16,14 +16,15 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-import { UserPlus, Edit, Mail } from "lucide-react"
+import { UserPlus, Edit, Mail, Trash2 } from "lucide-react"
 import type { UserRole } from "@/types/user" // Declare or import UserRole
 
 export function UserManagement() {
-  const { users, createUser, updateUserRole, updateUserManager } = useData()
+  const { users, createUser, updateUserRole, updateUserManager, deleteUser } = useData()
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<string | null>(null)
   const [showPasswordNotification, setShowPasswordNotification] = useState(false)
+  const [deletingUser, setDeletingUser] = useState<string | null>(null)
 
   const [newUserEmail, setNewUserEmail] = useState("")
   const [newUserName, setNewUserName] = useState("")
@@ -52,6 +53,11 @@ export function UserManagement() {
 
   const handleUpdateManager = (userId: string, managerId: string) => {
     updateUserManager(userId, managerId)
+  }
+
+  const handleDeleteUser = (userId: string) => {
+    deleteUser(userId)
+    setDeletingUser(null)
   }
 
   return (
@@ -147,7 +153,18 @@ export function UserManagement() {
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-1">
                     <p className="font-medium">{user.name}</p>
-                    <Badge variant={user.role === "admin" ? "default" : "secondary"}>{user.role}</Badge>
+                    <Badge 
+                      variant={user.role === "admin" ? "default" : "secondary"}
+                      className={
+                        user.role === "admin" 
+                          ? "bg-purple-600 text-white hover:bg-purple-700" 
+                          : user.role === "manager"
+                          ? "bg-blue-600 text-white hover:bg-blue-700"
+                          : ""
+                      }
+                    >
+                      {user.role}
+                    </Badge>
                   </div>
                   <p className="text-sm text-muted-foreground">{user.email}</p>
                   {user.managerId && (
@@ -212,6 +229,42 @@ export function UserManagement() {
                               </Select>
                             </div>
                           )}
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                    
+                    <Dialog
+                      open={deletingUser === user.id}
+                      onOpenChange={(open) => setDeletingUser(open ? user.id : null)}
+                    >
+                      <DialogTrigger asChild>
+                        <Button variant="destructive" size="sm">
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Delete
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Delete User</DialogTitle>
+                          <DialogDescription>
+                            Are you sure you want to delete {user.name}? This action cannot be undone.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="flex gap-3 pt-4">
+                          <Button 
+                            variant="outline" 
+                            onClick={() => setDeletingUser(null)}
+                            className="flex-1"
+                          >
+                            Cancel
+                          </Button>
+                          <Button 
+                            variant="destructive" 
+                            onClick={() => handleDeleteUser(user.id)}
+                            className="flex-1"
+                          >
+                            Delete
+                          </Button>
                         </div>
                       </DialogContent>
                     </Dialog>
