@@ -17,6 +17,7 @@ interface DataContextType {
   createUser: (email: string, name: string, role: UserRole, managerId?: string) => User
   updateUserRole: (userId: string, role: UserRole) => void
   updateUserManager: (userId: string, managerId: string) => void
+  deleteUser: (userId: string) => void
   createExpense: (
     amount: number,
     currency: Currency,
@@ -168,6 +169,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const updateUserManager = (userId: string, managerId: string) => {
     const updatedUsers = users.map((u) => (u.id === userId ? { ...u, managerId } : u))
+    setUsers(updatedUsers)
+    localStorage.setItem("users", JSON.stringify(updatedUsers))
+  }
+
+  const deleteUser = (userId: string) => {
+    const updatedUsers = users.filter((u) => u.id !== userId)
     setUsers(updatedUsers)
     localStorage.setItem("users", JSON.stringify(updatedUsers))
   }
@@ -445,6 +452,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         createUser,
         updateUserRole,
         updateUserManager,
+        deleteUser,
         createExpense,
         updateExpenseStatus,
         adminOverrideExpense,

@@ -56,9 +56,14 @@ export function ManagerDashboard() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold">Manager Dashboard</h1>
-              <p className="text-sm text-muted-foreground">
-                {currentUser?.name} • {company?.name}
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="text-sm text-muted-foreground">
+                  {currentUser?.name} • {company?.name}
+                </p>
+                <Badge className="bg-blue-600 text-white hover:bg-blue-700 text-xs">
+                  MANAGER
+                </Badge>
+              </div>
             </div>
             <div className="flex items-center gap-3">
               <ThemeToggle />

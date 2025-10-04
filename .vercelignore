@@ -1,0 +1,4 @@
+# Ignore problematic build scripts
+node_modules/@tailwindcss/oxide
+node_modules/sharp
+node_modules/tesseract.js
