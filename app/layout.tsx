@@ -5,6 +5,7 @@ import { GeistMono } from "geist/font/mono"
 import { Analytics } from "@vercel/analytics/next"
 import { DataProvider } from "@/lib/data-context"
 import { ThemeProvider } from "@/lib/theme-provider"
+import { SmoothScroll } from "@/components/smooth-scroll"
 import { Suspense } from "react"
 import "./globals.css"
 
@@ -24,7 +25,9 @@ export default function RootLayout({
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
         <Suspense fallback={<div>Loading...</div>}>
           <ThemeProvider>
-            <DataProvider>{children}</DataProvider>
+            <DataProvider>
+              <SmoothScroll>{children}</SmoothScroll>
+            </DataProvider>
           </ThemeProvider>
         </Suspense>
         <Analytics />

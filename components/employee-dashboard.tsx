@@ -7,7 +7,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { ExpenseSubmissionForm } from "@/components/expense-submission-form"
 import { ThemeToggle } from "@/components/theme-toggle"
-import { Receipt, TrendingUp, Clock, CheckCircle, XCircle, LogOut, Plus } from "lucide-react"
+import { Receipt, TrendingUp, Clock, CheckCircle, XCircle, LogOut, Plus, Download } from "lucide-react"
+import { generateExpensePDF, generateBulkExpensePDF } from "@/lib/pdf-service"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Dialog,
   DialogContent,
@@ -18,8 +21,10 @@ import {
 } from "@/components/ui/dialog"
 
 export function EmployeeDashboard() {
-  const { currentUser, company, expenses, logout } = useData()
+  const { currentUser, company, expenses, logout, users } = useData()
   const [isSubmitDialogOpen, setIsSubmitDialogOpen] = useState(false)
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
 
   const myExpenses = expenses.filter((e) => e.employeeId === currentUser?.id)
   const pendingExpenses = myExpenses.filter((e) => e.status === "pending")
@@ -30,7 +35,7 @@ export function EmployeeDashboard() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b border-border bg-card">
+      <header className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-card">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div>
@@ -48,7 +53,7 @@ export function EmployeeDashboard() {
                     Submit Expense
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-2xl">
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto scrollbar-hide">
                   <DialogHeader>
                     <DialogTitle>Submit New Expense</DialogTitle>
                     <DialogDescription>Fill in the details of your expense claim</DialogDescription>
@@ -65,7 +70,8 @@ export function EmployeeDashboard() {
         </div>
       </header>
 
-      <div className="container mx-auto px-6 py-8">
+      <div className="pt-32">
+        <div className="container mx-auto px-6 py-8">
         {/* Stats Cards */}
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-8">
           <Card>
@@ -116,12 +122,47 @@ export function EmployeeDashboard() {
         </div>
 
         {/* Expense History */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Expense History</CardTitle>
-            <CardDescription>Track the status of all your submitted expenses</CardDescription>
+        <Card className="h-[600px] flex flex-col">
+          <CardHeader className="flex-shrink-0">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Expense History</CardTitle>
+                <CardDescription>Track the status of all your submitted expenses</CardDescription>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Label className="text-sm font-medium">Download:</Label>
+                <Input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="w-36"
+                  placeholder="From"
+                />
+                <Input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="w-36"
+                  placeholder="To"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    let filtered = myExpenses
+                    if (dateFrom) filtered = filtered.filter(e => new Date(e.date) >= new Date(dateFrom))
+                    if (dateTo) filtered = filtered.filter(e => new Date(e.date) <= new Date(dateTo))
+                    const title = `My Expenses ${dateFrom ? `from ${dateFrom}` : ''} ${dateTo ? `to ${dateTo}` : ''}`
+                    generateBulkExpensePDF(filtered, company!, users, title)
+                  }}
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Download PDF
+                </Button>
+              </div>
+            </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex-1 overflow-hidden">
             {myExpenses.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <Receipt className="w-12 h-12 mx-auto mb-4 opacity-20" />
@@ -132,7 +173,7 @@ export function EmployeeDashboard() {
                 </Button>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="h-full overflow-y-auto scrollbar-hide space-y-4 pr-2">
                 {myExpenses
                   .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
                   .map((expense) => (
@@ -167,10 +208,20 @@ export function EmployeeDashboard() {
                             <span>Submitted {new Date(expense.createdAt).toLocaleDateString()}</span>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <p className="text-2xl font-bold">
-                            {expense.currency} {expense.amount.toLocaleString()}
-                          </p>
+                        <div className="text-right flex items-center gap-3">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => generateExpensePDF(expense, company!, currentUser!)}
+                          >
+                            <Download className="w-4 h-4 mr-2" />
+                            PDF
+                          </Button>
+                          <div>
+                            <p className="text-2xl font-bold">
+                              {expense.currency} {expense.amount.toLocaleString()}
+                            </p>
+                          </div>
                         </div>
                       </div>
 
@@ -205,6 +256,7 @@ export function EmployeeDashboard() {
             )}
           </CardContent>
         </Card>
+        </div>
       </div>
     </div>
   )

@@ -118,6 +118,11 @@ export function ExpenseSubmissionForm({ onSuccess }: ExpenseSubmissionFormProps)
         <p className="text-xs text-muted-foreground">
           Upload a receipt image and we'll automatically extract the details using OCR
         </p>
+        {receiptUrl && (
+          <div className="mt-2">
+            <img src={receiptUrl} alt="Receipt preview" className="max-w-32 h-auto rounded border" />
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-4">

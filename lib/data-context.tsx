@@ -60,6 +60,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (storedUsers) setUsers(JSON.parse(storedUsers))
     if (storedExpenses) setExpenses(JSON.parse(storedExpenses))
     if (storedApprovalRule) setApprovalRule(JSON.parse(storedApprovalRule))
+
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "users" && e.newValue) setUsers(JSON.parse(e.newValue))
+      if (e.key === "expenses" && e.newValue) setExpenses(JSON.parse(e.newValue))
+      if (e.key === "approvalRule" && e.newValue) setApprovalRule(JSON.parse(e.newValue))
+    }
+
+    window.addEventListener("storage", handleStorageChange)
+    return () => window.removeEventListener("storage", handleStorageChange)
   }, [])
 
   const login = async (email: string, password: string): Promise<boolean> => {
@@ -206,18 +215,20 @@ export function DataProvider({ children }: { children: ReactNode }) {
       createdAt: new Date().toISOString(),
     }
 
-    if (currency !== company!.currency) {
-      convertCurrency(amount, currency, company!.currency).then((converted) => {
-        newExpense.convertedAmount = converted
-        const updatedExpenses = expenses.map((e) => (e.id === newExpense.id ? newExpense : e))
-        setExpenses(updatedExpenses)
-        localStorage.setItem("expenses", JSON.stringify(updatedExpenses))
-      })
-    }
-
     const updatedExpenses = [...expenses, newExpense]
     setExpenses(updatedExpenses)
     localStorage.setItem("expenses", JSON.stringify(updatedExpenses))
+
+    if (currency !== company!.currency) {
+      convertCurrency(amount, currency, company!.currency).then((converted) => {
+        newExpense.convertedAmount = converted
+        setExpenses((prev) => {
+          const updated = prev.map((e) => (e.id === newExpense.id ? { ...e, convertedAmount: converted } : e))
+          localStorage.setItem("expenses", JSON.stringify(updated))
+          return updated
+        })
+      })
+    }
 
     const employee = currentUser!
     if (employee.managerId && approvalRule?.isManagerApproverRequired) {
@@ -238,8 +249,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     approverId: string,
     comment?: string,
   ) => {
-    setExpenses((prev) =>
-      prev.map((expense) => {
+    setExpenses((prev) => {
+      const updated = prev.map((expense) => {
         if (expense.id !== expenseId) return expense
 
         const approver = users.find((u) => u.id === approverId)
@@ -343,15 +354,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
           status: "approved",
           approvalHistory: updatedHistory,
         }
-      }),
-    )
+      })
+      localStorage.setItem("expenses", JSON.stringify(updated))
+      return updated
+    })
   }
 
   const adminOverrideExpense = (expenseId: string, action: "approved" | "rejected", comment?: string) => {
     if (currentUser?.role !== "admin") return
 
-    setExpenses((prev) =>
-      prev.map((expense) => {
+    setExpenses((prev) => {
+      const updated = prev.map((expense) => {
         if (expense.id !== expenseId) return expense
 
         const employee = users.find((u) => u.id === expense.employeeId)
@@ -381,8 +394,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
           status: action === "approved" ? "approved" : "rejected",
           approvalHistory: updatedHistory,
         }
-      }),
-    )
+      })
+      localStorage.setItem("expenses", JSON.stringify(updated))
+      return updated
+    })
   }
 
   const updateApprovalRule = (isManagerApproverRequired: boolean, sequence: ApprovalRule["sequence"]) => {

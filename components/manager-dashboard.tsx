@@ -7,6 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
 import {
   Dialog,
   DialogContent,
@@ -16,7 +18,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { ThemeToggle } from "@/components/theme-toggle"
-import { Receipt, Clock, CheckCircle, XCircle, LogOut, Users, ArrowRightLeft } from "lucide-react"
+import { Receipt, Clock, CheckCircle, XCircle, LogOut, Users, ArrowRightLeft, Download } from "lucide-react"
+import { generateExpensePDF, generateBulkExpensePDF } from "@/lib/pdf-service"
 import type { Expense } from "@/lib/types"
 
 export function ManagerDashboard() {
@@ -24,12 +27,21 @@ export function ManagerDashboard() {
     useData()
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null)
   const [comment, setComment] = useState("")
+  const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState<string>("all")
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
 
   const pendingForMe = getPendingExpensesForApprover(currentUser?.id || "")
   const myTeamExpenses = expenses.filter((e) => {
     const employee = users.find((u) => u.id === e.employeeId)
     return employee?.managerId === currentUser?.id
   })
+  
+  const myTeamMembers = users.filter((u) => u.managerId === currentUser?.id)
+  
+  const filteredTeamExpenses = selectedEmployeeFilter === "all" 
+    ? myTeamExpenses 
+    : myTeamExpenses.filter((e) => e.employeeId === selectedEmployeeFilter)
   const approvedByMe = myTeamExpenses.filter((e) =>
     e.approvalHistory.some((h) => h.approverId === currentUser?.id && h.action === "approved"),
   )
@@ -51,7 +63,7 @@ export function ManagerDashboard() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b border-border bg-card">
+      <header className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-card">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div>
@@ -76,7 +88,8 @@ export function ManagerDashboard() {
         </div>
       </header>
 
-      <div className="container mx-auto px-6 py-8">
+      <div className="pt-32">
+        <div className="container mx-auto px-6 py-8">
         {/* Stats Cards */}
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-8">
           <Card>
@@ -125,19 +138,33 @@ export function ManagerDashboard() {
         </div>
 
         {/* Pending Approvals */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle>Pending Approvals</CardTitle>
-            <CardDescription>Review and approve expenses from your team</CardDescription>
+        <Card className="mb-8 h-[500px] flex flex-col">
+          <CardHeader className="flex-shrink-0">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Pending Approvals</CardTitle>
+                <CardDescription>Review and approve expenses from your team</CardDescription>
+              </div>
+              {pendingForMe.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => generateBulkExpensePDF(pendingForMe, company!, users, "Pending Approvals Report")}
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Download Pending PDF
+                </Button>
+              )}
+            </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex-1 overflow-hidden">
             {pendingForMe.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <CheckCircle className="w-12 h-12 mx-auto mb-4 opacity-20" />
                 <p>No pending approvals</p>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="h-full overflow-y-auto scrollbar-hide space-y-4 pr-2">
                 {pendingForMe.map((expense) => (
                   <div
                     key={expense.id}
@@ -188,7 +215,7 @@ export function ManagerDashboard() {
                           <DialogTrigger asChild>
                             <Button onClick={() => setSelectedExpense(expense)}>Review</Button>
                           </DialogTrigger>
-                          <DialogContent className="max-w-2xl">
+                          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto scrollbar-hide">
                             <DialogHeader>
                               <DialogTitle>Review Expense</DialogTitle>
                               <DialogDescription>Approve or reject this expense claim</DialogDescription>
@@ -297,22 +324,70 @@ export function ManagerDashboard() {
         </Card>
 
         {/* All Team Expenses */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Team Expense History</CardTitle>
-            <CardDescription>All expenses from your team members</CardDescription>
+        <Card className="h-[600px] flex flex-col">
+          <CardHeader className="flex-shrink-0">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Team Expense History</CardTitle>
+                <CardDescription>All expenses from your team members</CardDescription>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Label className="text-sm font-medium">Filters:</Label>
+                <Select value={selectedEmployeeFilter} onValueChange={setSelectedEmployeeFilter}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue placeholder="Employee" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Employees</SelectItem>
+                    {myTeamMembers.map((employee) => (
+                      <SelectItem key={employee.id} value={employee.id}>
+                        {employee.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="w-36"
+                  placeholder="From"
+                />
+                <Input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="w-36"
+                  placeholder="To"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    let filtered = filteredTeamExpenses
+                    if (dateFrom) filtered = filtered.filter(e => new Date(e.date) >= new Date(dateFrom))
+                    if (dateTo) filtered = filtered.filter(e => new Date(e.date) <= new Date(dateTo))
+                    const employeeName = selectedEmployeeFilter !== 'all' ? myTeamMembers.find(e => e.id === selectedEmployeeFilter)?.name : 'Team'
+                    const title = `${employeeName} Expenses ${dateFrom ? `from ${dateFrom}` : ''} ${dateTo ? `to ${dateTo}` : ''}`
+                    generateBulkExpensePDF(filtered, company!, users, title)
+                  }}
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Download PDF
+                </Button>
+              </div>
+            </div>
           </CardHeader>
-          <CardContent>
-            {myTeamExpenses.length === 0 ? (
+          <CardContent className="flex-1 overflow-hidden">
+            {filteredTeamExpenses.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <Receipt className="w-12 h-12 mx-auto mb-4 opacity-20" />
-                <p>No team expenses yet</p>
+                <p>{selectedEmployeeFilter === "all" ? "No team expenses yet" : "No expenses found for selected employee"}</p>
               </div>
             ) : (
-              <div className="space-y-4">
-                {myTeamExpenses
+              <div className="h-full overflow-y-auto scrollbar-hide space-y-4 pr-2">
+                {filteredTeamExpenses
                   .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-                  .slice(0, 10)
                   .map((expense) => (
                     <div
                       key={expense.id}
@@ -321,6 +396,11 @@ export function ManagerDashboard() {
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-1">
                           <p className="font-medium">{expense.employeeName}</p>
+                          {expense.receiptUrl && (
+                            <Badge variant="outline" className="text-xs bg-green-50 text-green-700">
+                              📎 Receipt
+                            </Badge>
+                          )}
                           <Badge
                             variant={
                               expense.status === "approved"
@@ -341,15 +421,28 @@ export function ManagerDashboard() {
                           {expense.category} • {new Date(expense.date).toLocaleDateString()}
                         </p>
                       </div>
-                      <div className="text-right">
-                        <p className="font-bold">
-                          {expense.currency} {expense.amount.toLocaleString()}
-                        </p>
-                        {expense.convertedAmount && expense.currency !== company?.currency && (
-                          <p className="text-xs text-primary mt-1">
-                            {company?.currency} {expense.convertedAmount.toFixed(2)}
+                      <div className="text-right flex items-center gap-3">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => {
+                            const employee = users.find(u => u.id === expense.employeeId)
+                            if (employee) generateExpensePDF(expense, company!, employee)
+                          }}
+                        >
+                          <Download className="w-4 h-4 mr-2" />
+                          PDF
+                        </Button>
+                        <div>
+                          <p className="font-bold">
+                            {expense.currency} {expense.amount.toLocaleString()}
                           </p>
-                        )}
+                          {expense.convertedAmount && expense.currency !== company?.currency && (
+                            <p className="text-xs text-primary mt-1">
+                              {company?.currency} {expense.convertedAmount.toFixed(2)}
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -357,6 +450,7 @@ export function ManagerDashboard() {
             )}
           </CardContent>
         </Card>
+        </div>
       </div>
     </div>
   )

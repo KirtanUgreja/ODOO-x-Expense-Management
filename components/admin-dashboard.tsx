@@ -8,6 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
 import {
   Dialog,
   DialogContent,
@@ -21,8 +23,9 @@ import { ApprovalRuleConfig } from "@/components/approval-rule-config"
 import { EmailNotificationsPanel } from "@/components/email-notifications-panel"
 
 import { ThemeToggle } from "@/components/theme-toggle"
-import { Users, Receipt, TrendingUp, Settings, LogOut, ShieldAlert, CheckCircle, XCircle, Mail } from "lucide-react"
+import { Users, Receipt, TrendingUp, Settings, LogOut, ShieldAlert, CheckCircle, XCircle, Mail, Download } from "lucide-react"
 import { getEmailNotifications } from "@/lib/email-service"
+import { generateExpensePDF, generateBulkExpensePDF } from "@/lib/pdf-service"
 import type { Expense } from "@/lib/types"
 
 export function AdminDashboard() {
@@ -31,10 +34,24 @@ export function AdminDashboard() {
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null)
   const [overrideComment, setOverrideComment] = useState("")
   const [emailCount, setEmailCount] = useState(0)
+  const [selectedManagerFilter, setSelectedManagerFilter] = useState<string>("all")
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
 
   const pendingExpenses = expenses.filter((e) => e.status === "pending")
   const approvedExpenses = expenses.filter((e) => e.status === "approved")
   const totalExpenseAmount = expenses.filter((e) => e.status === "approved").reduce((sum, e) => sum + e.amount, 0)
+  
+  // Get managers for filter dropdown
+  const managers = users.filter((u) => u.role === "manager")
+  
+  // Filter expenses by selected manager
+  const filteredExpenses = selectedManagerFilter === "all" 
+    ? expenses 
+    : expenses.filter((expense) => {
+        const employee = users.find((u) => u.id === expense.employeeId)
+        return employee?.managerId === selectedManagerFilter
+      })
 
   useEffect(() => {
     const updateEmailCount = () => {
@@ -64,7 +81,7 @@ export function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b border-border bg-card">
+      <header className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-card">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div>
@@ -87,24 +104,52 @@ export function AdminDashboard() {
         </div>
       </header>
 
-      <div className="container mx-auto px-6 py-8">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full max-w-3xl grid-cols-4">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="users">Users</TabsTrigger>
-            <TabsTrigger value="settings">Settings</TabsTrigger>
-            <TabsTrigger value="emails" className="relative">
-              <Mail className="w-4 h-4 mr-2" />
-              Emails
-              {emailCount > 0 && (
-                <Badge className="ml-2 h-5 min-w-5 px-1 text-xs" variant="default">
-                  {emailCount}
-                </Badge>
-              )}
-            </TabsTrigger>
-          </TabsList>
+      <div className="pt-32">
+        <div className="container mx-auto px-6 py-8">
+          <div className="space-y-6">
+            <div className="bg-muted text-muted-foreground inline-flex h-9 w-fit items-center justify-center rounded-lg p-[3px] grid grid-cols-4 max-w-3xl w-full">
+              <button
+                onClick={() => setActiveTab("overview")}
+                className={`inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-sm font-medium whitespace-nowrap transition-[color,box-shadow] ${
+                  activeTab === "overview" ? "bg-background text-foreground shadow-sm" : "hover:bg-background/50"
+                }`}
+              >
+                Overview
+              </button>
+              <button
+                onClick={() => setActiveTab("users")}
+                className={`inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-sm font-medium whitespace-nowrap transition-[color,box-shadow] ${
+                  activeTab === "users" ? "bg-background text-foreground shadow-sm" : "hover:bg-background/50"
+                }`}
+              >
+                Users
+              </button>
+              <button
+                onClick={() => setActiveTab("settings")}
+                className={`inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-sm font-medium whitespace-nowrap transition-[color,box-shadow] ${
+                  activeTab === "settings" ? "bg-background text-foreground shadow-sm" : "hover:bg-background/50"
+                }`}
+              >
+                Settings
+              </button>
+              <button
+                onClick={() => setActiveTab("emails")}
+                className={`inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-sm font-medium whitespace-nowrap transition-[color,box-shadow] relative ${
+                  activeTab === "emails" ? "bg-background text-foreground shadow-sm" : "hover:bg-background/50"
+                }`}
+              >
+                <Mail className="w-4 h-4 mr-2" />
+                Emails
+                {emailCount > 0 && (
+                  <Badge className="ml-2 h-5 min-w-5 px-1 text-xs" variant="default">
+                    {emailCount}
+                  </Badge>
+                )}
+              </button>
+            </div>
 
-          <TabsContent value="overview" className="space-y-6">
+            {activeTab === "overview" && (
+              <div className="space-y-6">
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -156,22 +201,70 @@ export function AdminDashboard() {
               </Card>
             </div>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>All Expenses</CardTitle>
-                <CardDescription>
-                  Latest expense submissions across your organization with admin override
-                </CardDescription>
+            <Card className="h-[600px] flex flex-col">
+              <CardHeader className="flex-shrink-0">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>All Expenses</CardTitle>
+                    <CardDescription>
+                      Latest expense submissions across your organization with admin override
+                    </CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Label className="text-sm font-medium">Filters:</Label>
+                    <Select value={selectedManagerFilter} onValueChange={setSelectedManagerFilter}>
+                      <SelectTrigger className="w-40">
+                        <SelectValue placeholder="Manager" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Managers</SelectItem>
+                        {managers.map((manager) => (
+                          <SelectItem key={manager.id} value={manager.id}>
+                            {manager.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="date"
+                      value={dateFrom}
+                      onChange={(e) => setDateFrom(e.target.value)}
+                      className="w-36"
+                      placeholder="From"
+                    />
+                    <Input
+                      type="date"
+                      value={dateTo}
+                      onChange={(e) => setDateTo(e.target.value)}
+                      className="w-36"
+                      placeholder="To"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        let filtered = filteredExpenses
+                        if (dateFrom) filtered = filtered.filter(e => new Date(e.date) >= new Date(dateFrom))
+                        if (dateTo) filtered = filtered.filter(e => new Date(e.date) <= new Date(dateTo))
+                        const title = `Expense Report ${dateFrom ? `from ${dateFrom}` : ''} ${dateTo ? `to ${dateTo}` : ''} ${selectedManagerFilter !== 'all' ? `- ${managers.find(m => m.id === selectedManagerFilter)?.name}` : ''}`
+                        generateBulkExpensePDF(filtered, company!, users, title)
+                      }}
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Download PDF
+                    </Button>
+                  </div>
+                </div>
               </CardHeader>
-              <CardContent>
-                {expenses.length === 0 ? (
+              <CardContent className="flex-1 overflow-hidden">
+                {filteredExpenses.length === 0 ? (
                   <div className="text-center py-12 text-muted-foreground">
                     <Receipt className="w-12 h-12 mx-auto mb-4 opacity-20" />
-                    <p>No expenses submitted yet</p>
+                    <p>{selectedManagerFilter === "all" ? "No expenses submitted yet" : "No expenses found for selected manager"}</p>
                   </div>
                 ) : (
-                  <div className="space-y-4">
-                    {expenses
+                  <div className="h-full overflow-y-auto scrollbar-hide space-y-4 pr-2">
+                    {filteredExpenses
                       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
                       .map((expense) => (
                         <div
@@ -181,6 +274,28 @@ export function AdminDashboard() {
                           <div className="flex-1">
                             <div className="flex items-center gap-3 mb-1">
                               <p className="font-medium">{expense.employeeName}</p>
+                              {expense.receiptUrl && (
+                                <Badge variant="outline" className="text-xs bg-green-50 text-green-700">
+                                  📎 Receipt
+                                </Badge>
+                              )}
+                              {(() => {
+                                const employee = users.find((u) => u.id === expense.employeeId)
+                                const manager = employee?.managerId ? users.find((u) => u.id === employee.managerId) : null
+                                const managerApproval = expense.approvalHistory.find(h => h.approverId === manager?.id)
+                                return manager ? (
+                                  <>
+                                    <Badge variant="outline" className="text-xs">
+                                      Manager: {manager.name}
+                                    </Badge>
+                                    {managerApproval && (
+                                      <Badge variant={managerApproval.action === "approved" ? "default" : "destructive"} className="text-xs">
+                                        Manager {managerApproval.action}
+                                      </Badge>
+                                    )}
+                                  </>
+                                ) : null
+                              })()}
                               <Badge
                                 variant={
                                   expense.status === "approved"
@@ -210,6 +325,17 @@ export function AdminDashboard() {
                             )}
                           </div>
                           <div className="text-right flex items-center gap-3">
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => {
+                                const employee = users.find(u => u.id === expense.employeeId)
+                                if (employee) generateExpensePDF(expense, company!, employee)
+                              }}
+                            >
+                              <Download className="w-4 h-4 mr-2" />
+                              PDF
+                            </Button>
                             <div>
                               <p className="font-bold">
                                 {expense.currency} {expense.amount.toLocaleString()}
@@ -231,7 +357,7 @@ export function AdminDashboard() {
                                     Override
                                   </Button>
                                 </DialogTrigger>
-                                <DialogContent>
+                                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto scrollbar-hide">
                                   <DialogHeader>
                                     <DialogTitle>Admin Override</DialogTitle>
                                     <DialogDescription>
@@ -258,6 +384,17 @@ export function AdminDashboard() {
                                         <p className="text-sm text-muted-foreground mb-1">Description</p>
                                         <p className="text-sm">{expense.description}</p>
                                       </div>
+                                      {expense.receiptUrl && (
+                                        <div className="pt-2 border-t border-border">
+                                          <p className="text-sm text-muted-foreground mb-2">Receipt</p>
+                                          <img
+                                            src={expense.receiptUrl}
+                                            alt="Receipt"
+                                            className="max-w-full h-auto rounded border border-border cursor-pointer"
+                                            onClick={() => window.open(expense.receiptUrl, '_blank')}
+                                          />
+                                        </div>
+                                      )}
                                     </div>
 
                                     <div className="space-y-2">
@@ -292,20 +429,28 @@ export function AdminDashboard() {
                 )}
               </CardContent>
             </Card>
-          </TabsContent>
+              </div>
+            )}
 
-          <TabsContent value="users">
-            <UserManagement />
-          </TabsContent>
+            {activeTab === "users" && (
+              <div>
+                <UserManagement />
+              </div>
+            )}
 
-          <TabsContent value="settings">
-            <ApprovalRuleConfig />
-          </TabsContent>
+            {activeTab === "settings" && (
+              <div>
+                <ApprovalRuleConfig />
+              </div>
+            )}
 
-          <TabsContent value="emails">
-            <EmailNotificationsPanel />
-          </TabsContent>
-        </Tabs>
+            {activeTab === "emails" && (
+              <div>
+                <EmailNotificationsPanel />
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )
