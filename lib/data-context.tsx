@@ -11,12 +11,14 @@ interface DataContextType {
   users: User[]
   expenses: Expense[]
   approvalRule: ApprovalRule | null
-  login: (email: string, password: string) => Promise<boolean>
-  signup: (email: string, password: string, name: string, companyName: string, currency: Currency) => Promise<boolean>
+  login: (email: string, password: string) => Promise<{ success: boolean; requiresPasswordChange?: boolean; user?: User }>
+  signup: (email: string, password: string, confirmPassword: string, name: string, companyName: string, currency: Currency) => Promise<{ success: boolean; error?: string }>
+  changePassword: (userId: string, newPassword: string) => void
   logout: () => void
   createUser: (email: string, name: string, role: UserRole, managerId?: string) => User
   updateUserRole: (userId: string, role: UserRole) => void
   updateUserManager: (userId: string, managerId: string) => void
+  resetUserPassword: (userId: string) => string
   deleteUser: (userId: string) => void
   createExpense: (
     amount: number,
@@ -61,38 +63,124 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (storedExpenses) setExpenses(JSON.parse(storedExpenses))
     if (storedApprovalRule) setApprovalRule(JSON.parse(storedApprovalRule))
 
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === "users" && e.newValue) setUsers(JSON.parse(e.newValue))
-      if (e.key === "expenses" && e.newValue) setExpenses(JSON.parse(e.newValue))
-      if (e.key === "approvalRule" && e.newValue) setApprovalRule(JSON.parse(e.newValue))
+    const eventSource = new EventSource('/api/events')
+    
+    eventSource.onmessage = (event) => {
+      const { type, data } = JSON.parse(event.data)
+      
+      if (type === 'users') {
+        setUsers(data)
+        localStorage.setItem('users', JSON.stringify(data))
+      }
+      if (type === 'expenses') {
+        setExpenses(data)
+        localStorage.setItem('expenses', JSON.stringify(data))
+      }
+      if (type === 'approvalRule') {
+        setApprovalRule(data)
+        localStorage.setItem('approvalRule', JSON.stringify(data))
+      }
     }
 
-    window.addEventListener("storage", handleStorageChange)
-    return () => window.removeEventListener("storage", handleStorageChange)
+    return () => eventSource.close()
   }, [])
 
-  const login = async (email: string, password: string): Promise<boolean> => {
-    const storedUsers = localStorage.getItem("users")
-    if (!storedUsers) return false
+  const broadcast = async (type: string, data: any) => {
+    localStorage.setItem(type, JSON.stringify(data))
+    
+    try {
+      await fetch('/api/broadcast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, data })
+      })
+    } catch (error) {
+      console.error('Broadcast failed:', error)
+    }
+  }
 
-    const allUsers: User[] = JSON.parse(storedUsers)
-    const user = allUsers.find((u) => u.email === email)
+  const login = async (email: string, password: string): Promise<{ success: boolean; requiresPasswordChange?: boolean; user?: User }> => {
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      return { success: false }
+    }
 
-    if (user) {
+    // Use current users state instead of localStorage for updated passwords
+    const user = users.find((u) => u.email === email)
+
+    if (user && user.password === password) {
+      // Check if this is first login (admin-created user)
+      if (user.isFirstLogin) {
+        return { success: true, requiresPasswordChange: true, user }
+      }
+      
       setCurrentUser(user)
       localStorage.setItem("currentUser", JSON.stringify(user))
-      return true
+      return { success: true }
     }
-    return false
+    return { success: false }
+  }
+
+  const changePassword = (userId: string, newPassword: string) => {
+    const updatedUsers = users.map((u) => 
+      u.id === userId 
+        ? { ...u, password: newPassword, isFirstLogin: false }
+        : u
+    )
+    setUsers(updatedUsers)
+    broadcast('users', updatedUsers)
+    
+    // Update current user if it's the same user
+    const updatedUser = updatedUsers.find(u => u.id === userId)
+    if (updatedUser && currentUser?.id === userId) {
+      setCurrentUser(updatedUser)
+      localStorage.setItem("currentUser", JSON.stringify(updatedUser))
+    }
   }
 
   const signup = async (
     email: string,
     password: string,
+    confirmPassword: string,
     name: string,
     companyName: string,
     currency: Currency,
-  ): Promise<boolean> => {
+  ): Promise<{ success: boolean; error?: string }> => {
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      return { success: false, error: "Please enter a valid email address" }
+    }
+
+    // Password validation
+    const passwordRequirements = [
+      { test: (p: string) => p.length >= 8, message: "Password must be at least 8 characters" },
+      { test: (p: string) => /[A-Z]/.test(p), message: "Password must contain uppercase letter" },
+      { test: (p: string) => /[a-z]/.test(p), message: "Password must contain lowercase letter" },
+      { test: (p: string) => /\d/.test(p), message: "Password must contain a number" },
+      { test: (p: string) => /[!@#$%^&*(),.?":{}|<>]/.test(p), message: "Password must contain special character" },
+    ]
+
+    for (const req of passwordRequirements) {
+      if (!req.test(password)) {
+        return { success: false, error: req.message }
+      }
+    }
+
+    // Password confirmation
+    if (password !== confirmPassword) {
+      return { success: false, error: "Passwords do not match" }
+    }
+
+    // Check if email already exists
+    const storedUsers = localStorage.getItem("users")
+    if (storedUsers) {
+      const existingUsers: User[] = JSON.parse(storedUsers)
+      if (existingUsers.some(u => u.email === email)) {
+        return { success: false, error: "Email already exists" }
+      }
+    }
     const companyId = `company-${Date.now()}`
     const userId = `user-${Date.now()}`
 
@@ -109,6 +197,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
       name,
       role: "admin",
       companyId,
+      password,
+      isEmailVerified: true, // Admin users are auto-verified
+      isFirstLogin: false,
       createdAt: new Date().toISOString(),
     }
 
@@ -133,7 +224,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     localStorage.setItem("users", JSON.stringify([newUser]))
     localStorage.setItem("approvalRule", JSON.stringify(defaultApprovalRule))
 
-    return true
+    return { success: true }
   }
 
   const logout = () => {
@@ -154,12 +245,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
       companyId: company!.id,
       managerId,
       password,
+      isFirstLogin: true, // Admin-created users must change password on first login
+      isEmailVerified: false, // Admin-created users don't need email verification
       createdAt: new Date().toISOString(),
     }
 
     const updatedUsers = [...users, newUser]
     setUsers(updatedUsers)
-    localStorage.setItem("users", JSON.stringify(updatedUsers))
+    broadcast('users', updatedUsers)
 
     console.log("[v0] User created, sending credentials email...")
     // Send email asynchronously (don't wait for completion)
@@ -173,19 +266,39 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const updateUserRole = (userId: string, role: UserRole) => {
     const updatedUsers = users.map((u) => (u.id === userId ? { ...u, role } : u))
     setUsers(updatedUsers)
-    localStorage.setItem("users", JSON.stringify(updatedUsers))
+    broadcast('users', updatedUsers)
   }
 
   const updateUserManager = (userId: string, managerId: string) => {
     const updatedUsers = users.map((u) => (u.id === userId ? { ...u, managerId } : u))
     setUsers(updatedUsers)
-    localStorage.setItem("users", JSON.stringify(updatedUsers))
+    broadcast('users', updatedUsers)
+  }
+
+  const resetUserPassword = (userId: string): string => {
+    const newPassword = Math.random().toString(36).slice(-8)
+    const updatedUsers = users.map((u) => 
+      u.id === userId 
+        ? { ...u, password: newPassword, isFirstLogin: true }
+        : u
+    )
+    setUsers(updatedUsers)
+    broadcast('users', updatedUsers)
+    
+    const user = users.find(u => u.id === userId)
+    if (user) {
+      sendCredentialsEmail(user, newPassword)
+        .then(() => console.log("[v0] Password reset email sent"))
+        .catch((error) => console.error("[v0] Failed to send reset email:", error))
+    }
+    
+    return newPassword
   }
 
   const deleteUser = (userId: string) => {
     const updatedUsers = users.filter((u) => u.id !== userId)
     setUsers(updatedUsers)
-    localStorage.setItem("users", JSON.stringify(updatedUsers))
+    broadcast('users', updatedUsers)
   }
 
   const createExpense = (
@@ -217,14 +330,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     const updatedExpenses = [...expenses, newExpense]
     setExpenses(updatedExpenses)
-    localStorage.setItem("expenses", JSON.stringify(updatedExpenses))
+    broadcast('expenses', updatedExpenses)
 
     if (currency !== company!.currency) {
       convertCurrency(amount, currency, company!.currency).then((converted) => {
         newExpense.convertedAmount = converted
         setExpenses((prev) => {
           const updated = prev.map((e) => (e.id === newExpense.id ? { ...e, convertedAmount: converted } : e))
-          localStorage.setItem("expenses", JSON.stringify(updated))
+          broadcast('expenses', updated)
           return updated
         })
       })
@@ -355,7 +468,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           approvalHistory: updatedHistory,
         }
       })
-      localStorage.setItem("expenses", JSON.stringify(updated))
+      broadcast('expenses', updated)
       return updated
     })
   }
@@ -395,7 +508,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           approvalHistory: updatedHistory,
         }
       })
-      localStorage.setItem("expenses", JSON.stringify(updated))
+      broadcast('expenses', updated)
       return updated
     })
   }
@@ -410,7 +523,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
 
     setApprovalRule(updatedRule)
-    localStorage.setItem("approvalRule", JSON.stringify(updatedRule))
+    broadcast('approvalRule', updatedRule)
   }
 
   const getManagerExpenses = (managerId: string): Expense[] => {
@@ -463,10 +576,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
         approvalRule,
         login,
         signup,
+        changePassword,
         logout,
         createUser,
         updateUserRole,
         updateUserManager,
+        resetUserPassword,
         deleteUser,
         createExpense,
         updateExpenseStatus,

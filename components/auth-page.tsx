@@ -3,49 +3,97 @@
 import type React from "react"
 
 import { useState } from "react"
-import { useData } from "@/lib/data-context"
+import { useData } from "@/lib/data-context-supabase"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ThemeToggle } from "@/components/theme-toggle"
-import type { Currency } from "@/lib/types"
-import { Receipt, TrendingUp, Shield, Zap } from "lucide-react"
+import { PasswordStrengthMeter } from "@/components/password-strength-meter"
+import { PasswordChangeDialog } from "@/components/password-change-dialog"
+import type { Currency, User } from "@/lib/types"
+import { Receipt, TrendingUp, Shield, Zap, AlertCircle } from "lucide-react"
 
 export function AuthPage() {
-  const { login, signup } = useData()
+  const { login, signup, changePassword } = useData()
   const [isLoading, setIsLoading] = useState(false)
   const [activeTab, setActiveTab] = useState("login")
+  const [error, setError] = useState("")
+  const [showPasswordChange, setShowPasswordChange] = useState(false)
+  const [pendingUser, setPendingUser] = useState<User | null>(null)
 
   const [loginEmail, setLoginEmail] = useState("")
   const [loginPassword, setLoginPassword] = useState("")
 
   const [signupEmail, setSignupEmail] = useState("")
   const [signupPassword, setSignupPassword] = useState("")
+  const [signupConfirmPassword, setSignupConfirmPassword] = useState("")
   const [signupName, setSignupName] = useState("")
   const [signupCompanyName, setSignupCompanyName] = useState("")
   const [signupCurrency, setSignupCurrency] = useState<Currency>("USD")
+  const [isSignupPasswordValid, setIsSignupPasswordValid] = useState(false)
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
+    setError("")
     setIsLoading(true)
-    const success = await login(loginEmail, loginPassword)
+    
+    const result = await login(loginEmail, loginPassword)
     setIsLoading(false)
-    if (!success) {
-      alert("Invalid credentials")
+    
+    if (!result.success) {
+      setError("Invalid email or password")
+    } else if (result.requiresPasswordChange && result.user) {
+      setPendingUser(result.user)
+      setShowPasswordChange(true)
     }
   }
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
+    setError("")
     setIsLoading(true)
-    await signup(signupEmail, signupPassword, signupName, signupCompanyName, signupCurrency)
+    
+    const result = await signup(
+      signupEmail, 
+      signupPassword, 
+      signupConfirmPassword,
+      signupName, 
+      signupCompanyName, 
+      signupCurrency
+    )
+    
     setIsLoading(false)
+    
+    if (!result.success && result.error) {
+      setError(result.error)
+    }
   }
 
+  const handlePasswordChange = (newPassword: string) => {
+    if (pendingUser) {
+      changePassword(pendingUser.id, newPassword)
+      setShowPasswordChange(false)
+      setPendingUser(null)
+      setLoginEmail("")
+      setLoginPassword("")
+    }
+  }
+
+  const passwordsMatch = signupPassword === signupConfirmPassword
+  const showConfirmError = signupConfirmPassword && !passwordsMatch
+
   return (
-    <div className="min-h-screen flex">
+    <>
+      <PasswordChangeDialog
+        open={showPasswordChange}
+        onPasswordChange={handlePasswordChange}
+        userEmail={pendingUser?.email || ""}
+      />
+      
+      <div className="min-h-screen flex">
       {/* Left side - Hero */}
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary/20 via-background to-background p-12 flex-col justify-between">
         <div>
@@ -158,6 +206,13 @@ export function AuthPage() {
                     </CardHeader>
                     <CardContent>
                       <form onSubmit={handleLogin} className="space-y-4">
+                        {error && (
+                          <Alert variant="destructive">
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertDescription>{error}</AlertDescription>
+                          </Alert>
+                        )}
+                        
                         <div className="space-y-2">
                           <Label htmlFor="login-email">Email</Label>
                           <Input
@@ -194,6 +249,13 @@ export function AuthPage() {
                     </CardHeader>
                     <CardContent>
                       <form onSubmit={handleSignup} className="space-y-4">
+                        {error && (
+                          <Alert variant="destructive">
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertDescription>{error}</AlertDescription>
+                          </Alert>
+                        )}
+                        
                         <div className="space-y-2">
                           <Label htmlFor="signup-name">Full Name</Label>
                           <Input
@@ -225,6 +287,26 @@ export function AuthPage() {
                             required
                           />
                         </div>
+                        
+                        <PasswordStrengthMeter 
+                          password={signupPassword} 
+                          onValidityChange={setIsSignupPasswordValid}
+                        />
+                        
+                        <div className="space-y-2">
+                          <Label htmlFor="signup-confirm-password">Confirm Password</Label>
+                          <Input
+                            id="signup-confirm-password"
+                            type="password"
+                            value={signupConfirmPassword}
+                            onChange={(e) => setSignupConfirmPassword(e.target.value)}
+                            className={showConfirmError ? "border-red-500" : ""}
+                            required
+                          />
+                          {showConfirmError && (
+                            <p className="text-sm text-red-600">Passwords do not match</p>
+                          )}
+                        </div>
                         <div className="space-y-2">
                           <Label htmlFor="signup-company">Company Name</Label>
                           <Input
@@ -251,7 +333,11 @@ export function AuthPage() {
                             </SelectContent>
                           </Select>
                         </div>
-                        <Button type="submit" className="w-full" disabled={isLoading}>
+                        <Button 
+                          type="submit" 
+                          className="w-full" 
+                          disabled={isLoading || !isSignupPasswordValid || !passwordsMatch || !signupPassword || !signupConfirmPassword}
+                        >
                           {isLoading ? "Creating account..." : "Create Account"}
                         </Button>
                       </form>
@@ -264,5 +350,6 @@ export function AuthPage() {
         </div>
       </div>
     </div>
+    </>
   )
 }

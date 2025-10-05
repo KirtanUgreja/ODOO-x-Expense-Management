@@ -13,6 +13,8 @@ export interface User {
   managerId?: string
   createdAt: string
   password?: string // Added password field for email credentials
+  isFirstLogin?: boolean // Flag for first-time login
+  isEmailVerified?: boolean // Flag for email verification status
 }
 
 export interface Company {

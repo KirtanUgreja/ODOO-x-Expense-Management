@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useData } from "@/lib/data-context"
+import { useData } from "@/lib/data-context-supabase"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -23,6 +23,7 @@ import { ApprovalRuleConfig } from "@/components/approval-rule-config"
 import { EmailNotificationsPanel } from "@/components/email-notifications-panel"
 
 import { ThemeToggle } from "@/components/theme-toggle"
+import { SmoothScroll } from "@/components/smooth-scroll"
 import { Users, Receipt, TrendingUp, Settings, LogOut, ShieldAlert, CheckCircle, XCircle, Mail, Download } from "lucide-react"
 import { getEmailNotifications } from "@/lib/email-service"
 import { generateExpensePDF, generateBulkExpensePDF } from "@/lib/pdf-service"
@@ -80,8 +81,8 @@ export function AdminDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-card">
+    <>
+      <header className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div>
@@ -104,8 +105,9 @@ export function AdminDashboard() {
         </div>
       </header>
 
-      <div className="pt-32">
-        <div className="container mx-auto px-6 py-8">
+      <SmoothScroll>
+        <div className="min-h-screen bg-background pt-24">
+          <div className="container mx-auto px-6 py-8">
           <div className="space-y-6">
             <div className="bg-muted text-muted-foreground inline-flex h-9 w-fit items-center justify-center rounded-lg p-[3px] grid grid-cols-4 max-w-3xl w-full">
               <button
@@ -450,8 +452,9 @@ export function AdminDashboard() {
               </div>
             )}
           </div>
+          </div>
         </div>
-      </div>
-    </div>
+      </SmoothScroll>
+    </>
   )
 }

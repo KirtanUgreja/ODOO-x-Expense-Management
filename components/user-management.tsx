@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { useData } from "@/lib/data-context"
+import { useData } from "@/lib/data-context-supabase"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -16,15 +16,17 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-import { UserPlus, Edit, Mail, Trash2 } from "lucide-react"
-import type { UserRole } from "@/types/user" // Declare or import UserRole
+import { UserPlus, Edit, Mail, Trash2, KeyRound } from "lucide-react"
+import type { UserRole } from "@/lib/types"
 
 export function UserManagement() {
-  const { users, createUser, updateUserRole, updateUserManager, deleteUser } = useData()
+  const { users, createUser, updateUserRole, updateUserManager, resetUserPassword, deleteUser } = useData()
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<string | null>(null)
   const [showPasswordNotification, setShowPasswordNotification] = useState(false)
+  const [notificationMessage, setNotificationMessage] = useState("")
   const [deletingUser, setDeletingUser] = useState<string | null>(null)
+  const [resettingPassword, setResettingPassword] = useState<string | null>(null)
 
   const [newUserEmail, setNewUserEmail] = useState("")
   const [newUserName, setNewUserName] = useState("")
@@ -42,6 +44,7 @@ export function UserManagement() {
     setNewUserRole("employee")
     setNewUserManager("")
     setIsCreateDialogOpen(false)
+    setNotificationMessage("User created successfully! Login credentials have been sent via email.")
     setShowPasswordNotification(true)
     setTimeout(() => setShowPasswordNotification(false), 5000)
   }
@@ -55,6 +58,14 @@ export function UserManagement() {
     updateUserManager(userId, managerId)
   }
 
+  const handleResetPassword = (userId: string) => {
+    resetUserPassword(userId)
+    setResettingPassword(null)
+    setNotificationMessage("Password reset successfully! New login credentials have been sent via email.")
+    setShowPasswordNotification(true)
+    setTimeout(() => setShowPasswordNotification(false), 5000)
+  }
+
   const handleDeleteUser = (userId: string) => {
     deleteUser(userId)
     setDeletingUser(null)
@@ -65,7 +76,7 @@ export function UserManagement() {
       {showPasswordNotification && (
         <div className="p-4 rounded-lg bg-primary/10 border border-primary flex items-center gap-3">
           <Mail className="w-5 h-5 text-primary" />
-          <p className="text-sm">User created successfully! Login credentials have been sent via email.</p>
+          <p className="text-sm">{notificationMessage}</p>
         </div>
       )}
 
@@ -175,6 +186,41 @@ export function UserManagement() {
                 </div>
                 {user.role !== "admin" && (
                   <div className="flex items-center gap-2">
+                    <Dialog
+                      open={resettingPassword === user.id}
+                      onOpenChange={(open) => setResettingPassword(open ? user.id : null)}
+                    >
+                      <DialogTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          <KeyRound className="w-4 h-4 mr-2" />
+                          Reset Password
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Reset Password</DialogTitle>
+                          <DialogDescription>
+                            Generate a new temporary password for {user.name}? They will need to change it on first login.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="flex gap-3 pt-4">
+                          <Button 
+                            variant="outline" 
+                            onClick={() => setResettingPassword(null)}
+                            className="flex-1"
+                          >
+                            Cancel
+                          </Button>
+                          <Button 
+                            onClick={() => handleResetPassword(user.id)}
+                            className="flex-1"
+                          >
+                            Reset Password
+                          </Button>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                    
                     <Dialog
                       open={editingUser === user.id}
                       onOpenChange={(open) => setEditingUser(open ? user.id : null)}

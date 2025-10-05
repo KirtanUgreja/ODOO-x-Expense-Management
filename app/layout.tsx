@@ -3,7 +3,7 @@ import type { Metadata } from "next"
 import { GeistSans } from "geist/font/sans"
 import { GeistMono } from "geist/font/mono"
 import { Analytics } from "@vercel/analytics/next"
-import { DataProvider } from "@/lib/data-context"
+import { DataProvider } from "@/lib/data-context-supabase"
 import { ThemeProvider } from "@/lib/theme-provider"
 import { SmoothScroll } from "@/components/smooth-scroll"
 import { Suspense } from "react"
@@ -26,7 +26,7 @@ export default function RootLayout({
         <Suspense fallback={<div>Loading...</div>}>
           <ThemeProvider>
             <DataProvider>
-              <SmoothScroll>{children}</SmoothScroll>
+              {children}
             </DataProvider>
           </ThemeProvider>
         </Suspense>

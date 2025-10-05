@@ -161,6 +161,8 @@ body::-webkit-scrollbar {
   display: none;
 }
 
+
+
 /* Auth page smooth transitions */
 [data-state="active"][data-orientation="horizontal"] {
   transform: translateX(0);
